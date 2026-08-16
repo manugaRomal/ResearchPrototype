@@ -1,24 +1,30 @@
 from components.rag_retrieval.module import RagRetrievalModule
-from shared.session_state import SessionState
+from shared.conversation_state import ConversationState
 
 
 def test_first_turn_has_nothing_to_retrieve():
     module = RagRetrievalModule(top_k=3)
-    state = SessionState(session_id="s1")
+    state = ConversationState(conversation_id="s1")
+    state.current_user_message = "hello there"
 
-    signal = module.process("hello there", state)
+    signal = module.get_context(state)
 
-    assert signal.retrieved_turns == []
+    assert signal.context_payload == ""
     assert signal.confidence == 0.0
 
 
 def test_semantically_similar_turn_is_retrieved_with_high_confidence():
     module = RagRetrievalModule(top_k=3)
-    state = SessionState(session_id="s1")
+    state = ConversationState(conversation_id="s1")
 
-    module.process("I love hiking in the mountains", state)
-    module.process("What's the weather like today?", state)
-    signal = module.process("I really enjoy hiking in the mountains", state)
+    state.current_user_message = "I love hiking in the mountains"
+    module.get_context(state)
 
-    assert "I love hiking in the mountains" in signal.retrieved_turns
+    state.current_user_message = "What's the weather like today?"
+    module.get_context(state)
+
+    state.current_user_message = "I really enjoy hiking in the mountains"
+    signal = module.get_context(state)
+
+    assert "I love hiking in the mountains" in signal.context_payload
     assert signal.confidence > 0.5

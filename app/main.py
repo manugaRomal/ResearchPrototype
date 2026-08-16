@@ -17,10 +17,10 @@ memory_manager = MemoryManager()
 
 
 class ChatRequest(BaseModel):
-    session_id: str
+    conversation_id: str
     message: str
 
 
 @app.post("/chat", response_model=ControllerDecision)
 def chat(request: ChatRequest) -> ControllerDecision:
-    return memory_manager.handle_turn(request.session_id, request.message)
+    return memory_manager.handle_turn(request.conversation_id, request.message)
