@@ -1,5 +1,10 @@
-"""Orchestrates a single turn through all 4 components. Holds one SessionState
-per session_id, in-memory only — restarting the process drops all sessions.
+"""Conversation Manager & orchestrator. Holds one ConversationState per
+conversation_id, in-memory only — restarting the process drops all sessions.
+
+Note: this skeleton doesn't call an LLM (see app/main.py), so
+`Controller.notify_response` — which would call `update()` on every module
+after the LLM replies — isn't wired up here yet. It's still exercised
+directly in tests/test_controller.py.
 """
 from __future__ import annotations
 
@@ -9,29 +14,26 @@ from components.controller.module import Controller
 from components.rag_retrieval.module import RagRetrievalModule
 from components.summarization.module import SummarizationModule
 from components.sliding_window.module import SlidingWindowModule
-from shared.session_state import SessionState
+from shared.conversation_state import ConversationState
 from shared.signals import ControllerDecision
 
 
 class MemoryManager:
     def __init__(self) -> None:
-        self._sessions: Dict[str, SessionState] = {}
-        self.sliding_window = SlidingWindowModule()
-        self.summarization = SummarizationModule()
-        self.rag_retrieval = RagRetrievalModule()
-        self.controller = Controller()
+        self._conversations: Dict[str, ConversationState] = {}
+        self.controller = Controller(
+            sliding_window=SlidingWindowModule(),
+            summarization=SummarizationModule(),
+            rag_retrieval=RagRetrievalModule(),
+        )
 
-    def handle_turn(self, session_id: str, message: str) -> ControllerDecision:
-        session_state = self._get_session(session_id)
-        session_state.add_turn(message)
+    def handle_turn(self, conversation_id: str, message: str) -> ControllerDecision:
+        state = self._get_conversation(conversation_id)
+        state.add_user_turn(message)
 
-        sliding_window_signal = self.sliding_window.process(message, session_state)
-        summarization_signal = self.summarization.process(message, session_state)
-        retrieval_signal = self.rag_retrieval.process(message, session_state)
+        return self.controller.decide(state)
 
-        return self.controller.decide(sliding_window_signal, summarization_signal, retrieval_signal)
-
-    def _get_session(self, session_id: str) -> SessionState:
-        if session_id not in self._sessions:
-            self._sessions[session_id] = SessionState(session_id=session_id)
-        return self._sessions[session_id]
+    def _get_conversation(self, conversation_id: str) -> ConversationState:
+        if conversation_id not in self._conversations:
+            self._conversations[conversation_id] = ConversationState(conversation_id=conversation_id)
+        return self._conversations[conversation_id]
